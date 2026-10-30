@@ -1,144 +1,125 @@
-# 中项网项目查询 Skill
+# 中项网项目查询 MCP
 
-为 AI 助手提供中项网会员项目查询能力。用户在专用浏览器中完成登录后，程序尝试复用本机保存的登录状态，并根据每次提出的需求查询项目；登录状态失效时，再由用户手动登录。
+为 AI 助手提供中项网会员项目查询能力。服务在本机运行，检查并尝试复用上次登录状态；需要重新登录时，由用户在专用 Chrome 窗口完成操作，再按当前需求查询项目。
 
-本项目采用 Python 和 Playwright 实现，以 Skill 形式提供使用流程和查询脚本。目前未封装为 MCP 服务。
+本仓库从原有 Skill 升级为 **Python MCP 服务 + 配套 Skill**，仓库地址保持不变。MCP 负责浏览器与数据获取，Skill 提供查询流程。服务采用本地 stdio 连接，不提供远程 HTTP 地址。
 
-## 工作方式
+## 工作流程
 
-1. 检查上次保存的登录状态，确认是否仍能访问登录后的页面。
-2. 状态有效时继续查询；无法确认时，提示用户在专用 Chrome 窗口完成登录。
-3. 根据用户当前请求确定关键词，执行搜索。
-4. 获取搜索响应，再使用 Python 直接请求同一个只读查询接口，将结果保存为 JSON 文件。
+1. AI 根据当前请求确定查询词，调用 `check_login`。
+2. 登录有效时继续；需要登录时调用 `open_login`。
+3. 用户在专用 Chrome 输入账号、密码及验证码，完成后告知 AI。
+4. AI 再检查登录状态，调用 `search_projects` 并整理结果。
 
-程序没有默认搜索词。`check` 和 `login` 均不执行项目搜索；只有明确运行 `search --keyword` 才会发起查询。账号、密码和验证码由用户在网站页面中输入。
+启动服务、检查登录和打开登录窗口均不会搜索项目。搜索必须提供非空关键词，不使用历史查询词作为默认值。登录状态由网站决定是否继续有效，不能保证长期免登录。
 
-## 环境要求
+## 环境与安装
 
-- Python 3.10 或更高版本
-- 已安装的 Google Chrome
-- 可正常访问中项网的网络环境
-- 具备相应项目访问权限的中项网账号
-
-目前已在 Windows 环境下验证浏览器搜索及 Python 接口查询。其他系统尚未实测。
-
-## 安装
-
-### 作为 Python 工具使用
-
-下载或克隆仓库，进入仓库目录后安装依赖：
+需要 Python 3.10+、已安装的 Google Chrome、可访问中项网的网络以及具有相应权限的会员账号。浏览器以可见窗口运行，需要本地桌面环境。目前主要在 Windows 验证。
 
 ```shell
 git clone https://github.com/Jinguji-Tamamo/ccpc-projects-skill.git
 cd ccpc-projects-skill
-python -m pip install -r requirements.txt
+python -m venv .venv
 ```
 
-程序使用电脑中已经安装的 Chrome，无需另外下载 Playwright Chromium。
-
-以下命令均在仓库根目录执行。如果系统使用 `python3` 或 Windows 的 `py` 命令，请相应替换示例中的 `python`。
-
-### 作为 Codex Skill 使用
-
-将仓库放入个人 skills 目录，文件夹命名为 `ccpc-projects`，并安装依赖。常见目录结构为：
-
-```text
-~/.codex/skills/ccpc-projects/
-├── SKILL.md
-├── README.md
-├── requirements.txt
-└── scripts/
-    └── search.py
-```
-
-其中 `~` 表示当前用户的主目录；Windows 通常为 `C:\Users\你的用户名`。安装后，在能够加载该 Skill 的聊天中使用：
-
-> 使用 $ccpc-projects，查询安义县与再生资源利用相关的项目，先列出候选项目和投资额。
-
-Skill 会先确定本次查询范围，再检查登录状态。关键词搜索结果仍需由 AI 结合地区、建设内容等信息筛选；复杂条件并非都已实现为脚本参数。
-
-## 使用步骤
-
-### 1. 检查登录状态
-
-```shell
-python scripts/search.py check
-```
-
-检查在后台进行，不执行项目搜索。
-
-| 输出 | 含义 | 后续操作 |
-| --- | --- | --- |
-| `SESSION_REUSED` | 已识别到登录后的页面 | 可以按需搜索 |
-| `NEEDS_LOGIN` | 未能确认登录有效，退出码为 2 | 运行登录命令并检查页面 |
-
-登录检查依赖网页显示。网络异常、页面加载缓慢或网站改版也可能导致检查失败，因此 `NEEDS_LOGIN` 不一定意味着账号已退出。
-
-### 2. 按需手动登录
-
-```shell
-python scripts/search.py login
-```
-
-程序会打开专用 Chrome 窗口。若上次登录仍有效，会直接结束；否则等待用户输入账号、密码及验证码，最长等待 10 分钟。登录成功后关闭窗口并保留浏览器配置。
-
-专用浏览器与日常使用的 Chrome 配置相互独立。在普通 Chrome 中登录，不代表本程序已经登录。请勿同时运行多个命令使用同一份专用配置。
-
-### 3. 按当前需求搜索
-
-```shell
-python scripts/search.py search --keyword "本次查询关键词"
-```
-
-`--keyword` 为必填参数，不填写或仅输入空白字符时，程序会报错退出。
-
-搜索命令也会检查登录状态；如无法确认有效登录，会等待用户手动登录，成功后继续本次查询。
-
-## 输出与本地数据
-
-默认数据目录为 `~/.ccpc-projects`：
-
-| 路径 | 内容 |
-| --- | --- |
-| `private_profile/` | 专用 Chrome 配置，包含 Cookie 等登录状态 |
-| `search_result.json` | 浏览器搜索接口返回的原始数据 |
-| `python_direct_result.json` | Python 直接请求相同查询接口返回的数据 |
-| `tmp/` | 程序运行所需的临时文件 |
-
-查询成功后，可从 JSON 中的 `data.list` 读取项目列表。具体字段以网站当次响应为准。结果文件会被后续成功查询覆盖，需保留历史记录时请自行另存。
-
-可通过环境变量 `CCPC_DATA_DIR` 更换数据目录，例如在 PowerShell 中：
+Windows 安装依赖：
 
 ```powershell
-$env:CCPC_DATA_DIR = "D:\ccpc-data"
-python scripts/search.py check
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-登录状态及会员查询数据仅保存在本机，不应提交到 GitHub 或随 Skill 分发。本仓库不包含账号密码、Cookie、token 或项目查询结果。
+macOS / Linux 安装依赖：
 
-## 当前能力与限制
+```shell
+.venv/bin/python -m pip install -r requirements.txt
+```
 
-- 已验证：用户手动登录后，Python 可完成浏览器搜索，并通过相同查询接口获取结构化结果。
-- 当前仅处理搜索首页，不自动遍历分页，也未实现项目详情批量读取。
-- 脚本目前仅提供关键词参数，尚未提供地区、时间、行业及项目阶段等独立筛选参数。
-- 长期登录状态复用尚未验证成功。网站也可能主动使会话失效，届时需要重新登录。
-- 查询权限取决于账号和网站规则。程序不会绕过验证码、会员权限或其他访问限制。
-- 项目信息不能直接证明符合某项资金申报条件。涉及中央预算内投资等政策判断时，应另行核对现行政策、项目建设内容及前期手续。
+程序使用本机 Chrome，无需另外下载 Playwright Chromium。依赖为官方 MCP Python SDK 1.x 与 Playwright。
+
+## 配置 MCP
+
+在支持本地 stdio MCP 的客户端中添加服务。以下是通用 JSON 示例，也可参考 `mcp-config.example.json`；不同客户端的配置入口及字段可能有所不同。
+
+```json
+{
+  "mcpServers": {
+    "ccpc-projects": {
+      "command": "C:/tools/ccpc-projects-skill/.venv/Scripts/python.exe",
+      "args": ["C:/tools/ccpc-projects-skill/ccpc_mcp.py"],
+      "env": {"CCPC_DATA_DIR": "C:/private/ccpc-data"}
+    }
+  }
+}
+```
+
+将路径替换为实际安装位置。`command` 必须指向安装过依赖的 Python；macOS / Linux 使用 `.venv/bin/python` 的绝对路径。`CCPC_DATA_DIR` 可省略，默认数据目录为 `~/.ccpc-projects`。
+
+客户端会启动并管理服务，无需预先运行程序。手动运行 `python ccpc_mcp.py` 时，终端等待 MCP 协议输入而没有业务输出属于正常现象。不要向标准输出添加普通日志，以免破坏通信。
+
+连接成功后，应能看到下面三个工具。可以向 AI 提出：
+
+> 查询安义县与再生资源利用有关的项目，先列出候选项目，需要登录时提示我操作。
+
+## MCP 工具
+
+| 工具 | 参数 | 用途 |
+| --- | --- | --- |
+| `check_login` | 无 | 打开或复用专用 Chrome，检查登录，不搜索 |
+| `open_login` | 无 | 显示手动登录窗口，立即返回，不阻塞等待 |
+| `search_projects` | `keyword` 必填；`limit` 默认 20，范围 1–50 | 检查认证后按关键词查询，仅获取首页 |
+
+用户完成登录后，AI 应再调用 `check_login`，不要连续循环检查。搜索发现认证失效时只返回状态，不自动输入凭据。`limit` 仅限制首页返回条数，不会触发分页。
+
+成功查询返回 `status: ok`、`keyword`、`page`、`total`、`returned` 和 `projects`。`total` 是网站报告的总数，不代表已读取全部项目。
+
+| 状态 | 含义 |
+| --- | --- |
+| `authenticated` | 已识别到登录后的页面 |
+| `needs_login` | 显示登录表单，或查询接口返回认证失效 |
+| `waiting_for_user` | 窗口已打开，等待用户手动登录 |
+| `unknown` | 无法确认登录，可能是网络、加载速度或网站改版问题 |
+| `invalid_argument` | 查询词为空或返回数量超出范围 |
+| `query_rejected` | 网站拒绝查询，需检查权限或验证提示 |
+| `unexpected_response` | 查询响应结构变化 |
+| `error` | 浏览器或网络操作未完成 |
+
+## 本地登录状态与数据
+
+数据目录下 `private_profile/` 保存专用 Chrome 配置，包含 Cookie 和其他登录数据。普通 Chrome 与此配置相互独立，日常浏览器中登录不会自动同步到服务。
+
+浏览器操作在独立线程中顺序执行，服务退出时关闭浏览器并保留配置。同一数据目录只运行一个服务。旧版测试程序用户可以将 `CCPC_DATA_DIR` 指向原来 `private_profile` 所在的父目录，程序仍会重新检查登录状态。
+
+MCP 将项目数据直接返回客户端，不自动写入结果文件。仓库不含账号密码、Cookie、token、浏览器配置或会员查询结果；服务不向 AI 返回认证请求头。账号密码和验证码由用户在页面输入，访问范围取决于账号权限。
+
+## Skill 与命令行
+
+仅配置 MCP 即可使用。如需统一 AI 的查询流程，可将本仓库放入个人 skills 目录，文件夹命名为 `ccpc-projects`，加载根目录 `SKILL.md`。
+
+命令行入口保留，调用相同后端：
+
+```shell
+python scripts/search.py check
+python scripts/search.py login
+python scripts/search.py search --keyword "本次查询词"
+```
+
+命令行登录需用户完成后按 Enter，再检查状态并退出；MCP 的 `open_login` 无需终端输入。命令行搜索直接输出 JSON，不再生成旧版结果文件。认证有效或搜索成功返回退出码 0，其余业务状态返回 2。不要与 MCP 同时使用同一数据目录。
+
+## 验证与限制
+
+原 Python 方案已实测浏览器搜索及查询接口返回数据。MCP 协议测试位于 `tests/test_protocol.py`，验证连接、工具发现、必填参数和无效参数不会触发查询；运行 `python tests/test_protocol.py` 即可复查，无需登录。
+
+当前仅查询搜索首页，未实现自动分页、项目详情读取，以及独立地区、日期、行业筛选参数。AI 需核对结果地区与业务相关性。长期会话复用尚未验证成功；网站主动使会话失效或更改页面结构时，可能需要重新登录或更新程序。
+
+项目政策资格须另查现行官方文件，不能仅凭关键词认定符合中央资金条件。
 
 ## 常见问题
 
-**为什么每次都提示登录？**
+**客户端无法启动服务**：检查 Python、脚本是否使用绝对路径，并确认该 Python 环境已经安装依赖。
 
-先确认是否使用了同一个数据目录。如果更换了 `CCPC_DATA_DIR`、运行用户或电脑，程序可能无法找到原来的浏览器配置。也可能是网站使会话失效，或登录检查未能识别页面；请运行 `login` 查看实际状态。
+**找不到 Chrome 或配置被占用**：确认已安装 Google Chrome，关闭使用相同配置目录的其他测试程序或服务后重试。
 
-**提示找不到 Playwright 或 Chrome，怎么办？**
+**登录后仍不能查询**：调用 `check_login` 查看状态，检查页面和账号权限。`unknown` 只表示检查失败，不一定是登录过期。
 
-在运行脚本的同一 Python 环境中执行 `python -m pip install -r requirements.txt`，并确认电脑已安装 Google Chrome。
-
-**浏览器配置被占用，怎么办？**
-
-关闭此前由本程序启动的专用 Chrome 窗口，确认没有其他查询进程正在使用同一数据目录后再试。无需清理日常 Chrome 的登录数据。
-
-**页面超时或接口返回失败，怎么办？**
-
-检查网络、登录状态和账号权限。如果网页本身可以正常查询，脚本仍持续失败，可能需要更新页面定位方式或接口匹配规则。错误退出时，不应将数据目录中此前留下的结果文件当作本次查询结果。
+**换电脑后要求重新登录**：登录配置仅保存在本机，不随仓库分发。新环境需要用户重新登录。
