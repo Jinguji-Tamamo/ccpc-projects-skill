@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ccpc-projects": {
+      "command": "C:/path/to/ccpc-projects-skill/.venv/Scripts/python.exe",
+      "args": ["C:/path/to/ccpc-projects-skill/ccpc_mcp.py"],
+      "env": {"CCPC_DATA_DIR": "C:/path/to/private/ccpc-data"}
+    }
+  }
+}
